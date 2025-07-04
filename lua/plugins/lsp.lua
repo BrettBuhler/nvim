@@ -3,16 +3,6 @@ return {
     dependencies = {
         'williamboman/mason.nvim',
         'williamboman/mason-lspconfig.nvim',
-        -- Autocompletion
-        'hrsh7th/nvim-cmp',
-        'hrsh7th/cmp-buffer',
-        'hrsh7th/cmp-path',
-        'saadparwaiz1/cmp_luasnip',
-        'hrsh7th/cmp-nvim-lsp',
-        'hrsh7th/cmp-nvim-lua',
-        -- Snippets
-        'L3MON4D3/LuaSnip',
-        'rafamadriz/friendly-snippets',
     },
     config = function()
         local autoformat_filetypes = {
@@ -57,6 +47,7 @@ return {
                 border = 'rounded',
                 header = '',
                 prefix = '',
+                filetype = 'diagnostic', -- Set a filetype for the float
             },
             signs = {
                 text = {
@@ -68,14 +59,18 @@ return {
             },
         })
 
-        -- Add cmp_nvim_lsp capabilities settings to lspconfig
-        -- This should be executed before you configure any language server
-        local lspconfig_defaults = require('lspconfig').util.default_config
-        lspconfig_defaults.capabilities = vim.tbl_deep_extend(
-            'force',
-            lspconfig_defaults.capabilities,
-            require('cmp_nvim_lsp').default_capabilities()
-        )
+        -- Add keymaps to diagnostic floats
+        vim.api.nvim_create_autocmd('FileType', {
+            pattern = 'diagnostic',
+            callback = function(args)
+                vim.keymap.set('n', 'q', '<cmd>close<cr>',
+                    { buffer = args.buf, silent = true, desc = "Close diagnostic float" })
+                vim.keymap.set('n', 'y', '<cmd>normal! ggVG"*y<cr>',
+                    { buffer = args.buf, silent = true, desc = "Yank diagnostic to clipboard" })
+            end,
+        })
+
+
 
         -- This is where you enable features that only work
         -- if there is a language server active in the file
@@ -109,7 +104,8 @@ return {
                 -- this first function is the "default handler"
                 -- it applies to every language server without a custom handler
                 function(server_name)
-                    require('lspconfig')[server_name].setup({})
+                    require('lspconfig')[server_name].setup({ capabilities = require("cmp_nvim_lsp")
+                    .default_capabilities() })
                 end,
 
                 -- this is the "custom handler" for `lua_ls`
@@ -131,100 +127,6 @@ return {
                     })
                 end,
             },
-        })
-
-        local cmp = require('cmp')
-
-        require('luasnip.loaders.from_vscode').lazy_load()
-
-        vim.opt.completeopt = { 'menu', 'menuone', 'noselect' }
-
-        cmp.setup({
-            preselect = 'item',
-            completion = {
-                completeopt = 'menu,menuone,noinsert'
-            },
-            window = {
-                documentation = cmp.config.window.bordered(),
-            },
-            sources = {
-                { name = 'path' },
-                { name = 'nvim_lsp' },
-                { name = 'buffer',  keyword_length = 3 },
-                { name = 'luasnip', keyword_length = 2 },
-            },
-            snippet = {
-                expand = function(args)
-                    require('luasnip').lsp_expand(args.body)
-                end,
-            },
-            formatting = {
-                fields = { 'abbr', 'menu', 'kind' },
-                format = function(entry, item)
-                    local n = entry.source.name
-                    if n == 'nvim_lsp' then
-                        item.menu = '[LSP]'
-                    else
-                        item.menu = string.format('[%s]', n)
-                    end
-                    return item
-                end,
-            },
-            mapping = cmp.mapping.preset.insert({
-                -- confirm completion item
-                ['<CR>'] = cmp.mapping.confirm({ select = false }),
-
-                -- scroll documentation window
-                ['<C-f>'] = cmp.mapping.scroll_docs(5),
-                ['<C-u>'] = cmp.mapping.scroll_docs(-5),
-
-                -- toggle completion menu
-                ['<C-e>'] = cmp.mapping(function(fallback)
-                    if cmp.visible() then
-                        cmp.abort()
-                    else
-                        cmp.complete()
-                    end
-                end),
-
-                -- tab complete
-                ['<Tab>'] = cmp.mapping(function(fallback)
-                    local col = vim.fn.col('.') - 1
-
-                    if cmp.visible() then
-                        cmp.select_next_item({ behavior = 'select' })
-                    elseif col == 0 or vim.fn.getline('.'):sub(col, col):match('%s') then
-                        fallback()
-                    else
-                        cmp.complete()
-                    end
-                end, { 'i', 's' }),
-
-                -- go to previous item
-                ['<S-Tab>'] = cmp.mapping.select_prev_item({ behavior = 'select' }),
-
-                -- navigate to next snippet placeholder
-                ['<C-d>'] = cmp.mapping(function(fallback)
-                    local luasnip = require('luasnip')
-
-                    if luasnip.jumpable(1) then
-                        luasnip.jump(1)
-                    else
-                        fallback()
-                    end
-                end, { 'i', 's' }),
-
-                -- navigate to the previous snippet placeholder
-                ['<C-b>'] = cmp.mapping(function(fallback)
-                    local luasnip = require('luasnip')
-
-                    if luasnip.jumpable(-1) then
-                        luasnip.jump(-1)
-                    else
-                        fallback()
-                    end
-                end, { 'i', 's' }),
-            }),
         })
     end
 }
